@@ -1,0 +1,251 @@
+@page "/books"
+@attribute [Authorize(Roles = "Admin")]
+@inject IBookStoresService BookService
+
+<PageTitle>Books Management — BookStores</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-journal-bookmark fs-3 me-3 text-warning"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">Books Master Management</h2>
+            <p class="text-muted mb-0">Administrator catalogue management, stock oversight, and book metadata editing</p>
+        </div>
+    </div>
+    <button class="btn btn-primary d-flex align-items-center gap-1" @onclick="ShowAddForm">
+        <i class="bi bi-plus-lg"></i> Add New Book
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(_notification))
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@_notification
+        <button type="button" class="btn-close" @onclick="() => _notification = string.Empty"></button>
+    </div>
+}
+
+@if (_showForm)
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent fw-bold py-3">
+            <i class="bi bi-@(_isEditing ? "pencil-square" : "plus-circle") me-2 text-primary"></i>
+            @(_isEditing ? $"Edit Book: {_editBook.BookId}" : "Create New Book")
+        </div>
+        <div class="card-body">
+            <EditForm Model="@_editBook" OnValidSubmit="SaveBook">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Book ID (ISBN) <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_editBook.BookId" disabled="@_isEditing" maxlength="6" placeholder="e.g. BU9999" />
+                        <ValidationMessage For="() => _editBook.BookId" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Book Title <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_editBook.Title" maxlength="80" placeholder="Enter full book title" />
+                        <ValidationMessage For="() => _editBook.Title" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Category / Type</label>
+                        <InputSelect class="form-select" @bind-Value="_editBook.Type">
+                            <option value="">Select Type</option>
+                            <option value="business">business</option>
+                            <option value="mod_cook">mod_cook</option>
+                            <option value="popular_comp">popular_comp</option>
+                            <option value="psychology">psychology</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Price (&pound;)</label>
+                        <InputNumber class="form-control" @bind-Value="_editBook.Price" step="0.01" min="0" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Stock Available</label>
+                        <InputNumber class="form-control" @bind-Value="_editBook.Stock" min="0" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Publisher</label>
+                        <InputSelect class="form-select" @bind-Value="_editBook.PubId">
+                            <option value="">Select Publisher</option>
+                            @foreach (var pub in _publishers)
+                            {
+                                <option value="@pub.PubId">@pub.PublisherName</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold">Description / Synopsis</label>
+                        <InputTextArea class="form-control" @bind-Value="_editBook.Description" rows="3" maxlength="500" placeholder="Enter book description for shop display..." />
+                    </div>
+                </div>
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                        <i class="bi bi-check-lg me-1"></i>Save Book
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => _showForm = false">
+                        Cancel
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (_books is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-warning" role="status"></div>
+        <p class="mt-2 text-muted">Loading books...</p>
+    </div>
+}
+else
+{
+    <div class="row g-2 mb-3 align-items-center">
+        <div class="col-12 col-md-4">
+            <input class="form-control" placeholder="Search books by title, type, or publisher..."
+                   @bind="_search" @bind:event="oninput" />
+        </div>
+        <div class="col-12 col-md-8 text-md-end text-muted small">
+            @FilteredBooks.Count() book(s) found
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Book ID</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Publisher</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>YTD Sold</th>
+                            <th>Authors</th>
+                            <th style="width: 140px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var book in FilteredBooks)
+                        {
+                            <tr>
+                                <td class="fw-bold font-monospace">@book.BookId</td>
+                                <td class="fw-semibold">@book.Title</td>
+                                <td><span class="badge bg-secondary">@(book.Type ?? "N/A")</span></td>
+                                <td class="small">@(book.Publisher?.PublisherName ?? "—")</td>
+                                <td class="fw-bold text-primary">@(book.Price.HasValue ? book.Price.Value.ToString("C") : "—")</td>
+                                <td>
+                                    <span class="badge @(book.Stock == 0 ? "bg-danger" : book.Stock <= 5 ? "bg-warning text-dark" : "bg-success")">
+                                        @book.Stock
+                                    </span>
+                                </td>
+                                <td>@(book.YtdSales.HasValue ? book.YtdSales.Value.ToString("N0") : "0")</td>
+                                <td class="small">
+                                    @foreach (var ba in book.BookAuthors)
+                                    {
+                                        <span class="badge bg-light text-dark border me-1">@ba.Author.FullName</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-primary" title="Edit book"
+                                                @onclick="() => EditBook(book)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" title="Delete book"
+                                                @onclick="() => DeleteBook(book.BookId)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Book>? _books;
+    private List<Publisher> _publishers = new();
+    private string _search = string.Empty;
+    private string _notification = string.Empty;
+    private bool _showForm = false;
+    private bool _isEditing = false;
+    private Book _editBook = new();
+
+    private IEnumerable<Book> FilteredBooks =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _books ?? Enumerable.Empty<Book>()
+            : (_books ?? Enumerable.Empty<Book>())
+                .Where(b => b.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || (b.Type ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || (b.Publisher?.PublisherName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _books = await BookService.GetBooksAsync();
+        _publishers = await BookService.GetPublishersAsync();
+    }
+
+    private void ShowAddForm()
+    {
+        _editBook = new Book { Stock = 15 };
+        _isEditing = false;
+        _showForm = true;
+    }
+
+    private void EditBook(Book book)
+    {
+        _editBook = new Book
+        {
+            BookId = book.BookId,
+            Title = book.Title,
+            Type = book.Type,
+            PubId = book.PubId,
+            Price = book.Price,
+            Stock = book.Stock,
+            Description = book.Description,
+            YtdSales = book.YtdSales
+        };
+        _isEditing = true;
+        _showForm = true;
+    }
+
+    private async Task SaveBook()
+    {
+        if (string.IsNullOrWhiteSpace(_editBook.BookId) || string.IsNullOrWhiteSpace(_editBook.Title))
+            return;
+
+        if (_isEditing)
+        {
+            await BookService.UpdateBookAsync(_editBook);
+            _notification = $"Book '{_editBook.Title}' updated successfully.";
+        }
+        else
+        {
+            await BookService.CreateBookAsync(_editBook);
+            _notification = $"Book '{_editBook.Title}' created successfully.";
+        }
+
+        _showForm = false;
+        await LoadData();
+    }
+
+    private async Task DeleteBook(string id)
+    {
+        await BookService.DeleteBookAsync(id);
+        _notification = $"Book '{id}' deleted successfully.";
+        await LoadData();
+    }
+}

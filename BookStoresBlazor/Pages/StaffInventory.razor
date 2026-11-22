@@ -1,0 +1,187 @@
+@page "/staff/inventory"
+@attribute [Authorize(Roles = "StoreStaff,Admin")]
+@inject IBookStoresService BookService
+
+<PageTitle>Inventory &amp; Stock — BookStores</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-boxes fs-3 me-3 text-info"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">Inventory &amp; Stock Management</h2>
+            <p class="text-muted mb-0">Monitor stock levels, identify low stock books, and adjust inventory quantities</p>
+        </div>
+    </div>
+    <div>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadInventory">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_notification))
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@_notification
+        <button type="button" class="btn-close" @onclick="() => _notification = string.Empty"></button>
+    </div>
+}
+
+@if (_books is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-info" role="status"></div>
+        <p class="mt-2 text-muted">Loading bookstore inventory...</p>
+    </div>
+}
+else
+{
+    @* ── Inventory Summary Cards ── *@
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <div class="text-muted small">Total Titles</div>
+                <div class="fs-4 fw-bold">@_books.Count</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <div class="text-muted small">Total Stock Units</div>
+                <div class="fs-4 fw-bold text-primary">@_books.Sum(b => b.Stock)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm p-3 border-start border-warning border-4">
+                <div class="text-muted small">Low Stock (&le; 5)</div>
+                <div class="fs-4 fw-bold text-warning">@_books.Count(b => b.Stock <= 5 && b.Stock > 0)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm p-3 border-start border-danger border-4">
+                <div class="text-muted small">Out of Stock (0)</div>
+                <div class="fs-4 fw-bold text-danger">@_books.Count(b => b.Stock == 0)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3 align-items-center">
+        <div class="col-12 col-md-5">
+            <input class="form-control" placeholder="Search inventory by title, genre, or publisher..."
+                   @bind="_search" @bind:event="oninput" />
+        </div>
+        <div class="col-6 col-md-3">
+            <select class="form-select" @bind="_filterStatus">
+                <option value="all">All Stock Statuses</option>
+                <option value="low">Low Stock (&le; 5)</option>
+                <option value="out">Out of Stock (0)</option>
+                <option value="in">Normal Stock (&gt; 5)</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-4 text-md-end text-muted small">
+            Showing @FilteredBooks.Count() item@(FilteredBooks.Count() != 1 ? "s" : "")
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Book ID</th>
+                            <th>Title</th>
+                            <th>Genre</th>
+                            <th>Publisher</th>
+                            <th>Price</th>
+                            <th>Current Stock</th>
+                            <th>Status Indicator</th>
+                            <th style="min-width: 170px;">Stock Adjustment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in FilteredBooks)
+                        {
+                            <tr>
+                                <td class="fw-bold font-monospace">@b.BookId</td>
+                                <td>
+                                    <div class="fw-semibold">@b.Title</div>
+                                    <div class="text-muted small">YTD Sold: @((b.YtdSales ?? 0).ToString("N0"))</div>
+                                </td>
+                                <td><span class="badge bg-secondary">@(b.Type ?? "General")</span></td>
+                                <td class="small">@(b.Publisher?.PublisherName ?? "—")</td>
+                                <td>@(b.Price.HasValue ? b.Price.Value.ToString("C") : "N/A")</td>
+                                <td class="fw-bold fs-6 @(b.Stock == 0 ? "text-danger" : b.Stock <= 5 ? "text-warning" : "text-success")">
+                                    @b.Stock
+                                </td>
+                                <td>
+                                    @if (b.Stock == 0)
+                                    {
+                                        <span class="badge bg-danger"><i class="bi bi-x-octagon me-1"></i>Out of Stock</span>
+                                    }
+                                    else if (b.Stock <= 5)
+                                    {
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Low Stock</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Adequate</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm" style="max-width: 160px;">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                @onclick="() => AdjustStock(b, -1)" disabled="@(b.Stock <= 0)">−</button>
+                                        <span class="form-control text-center fw-bold">@b.Stock</span>
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                @onclick="() => AdjustStock(b, +5)">+5</button>
+                                        <button class="btn btn-outline-primary" type="button"
+                                                @onclick="() => AdjustStock(b, +10)">+10</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Book>? _books;
+    private string _search = string.Empty;
+    private string _filterStatus = "all";
+    private string _notification = string.Empty;
+
+    private IEnumerable<Book> FilteredBooks =>
+        _books?.Where(b =>
+            (string.IsNullOrWhiteSpace(_search) ||
+             b.Title.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+             (b.Type ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+             (b.Publisher?.PublisherName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)) &&
+            (_filterStatus switch
+            {
+                "low" => b.Stock <= 5 && b.Stock > 0,
+                "out" => b.Stock == 0,
+                "in"  => b.Stock > 5,
+                _     => true
+            })) ?? Enumerable.Empty<Book>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInventory();
+    }
+
+    private async Task LoadInventory()
+    {
+        _books = await BookService.GetBooksAsync();
+    }
+
+    private async Task AdjustStock(Book book, int change)
+    {
+        var targetStock = Math.Max(0, book.Stock + change);
+        await BookService.UpdateBookStockAsync(book.BookId, targetStock);
+        book.Stock = targetStock;
+        _notification = $"Updated stock for '{book.Title}' to {targetStock} units.";
+    }
+}

@@ -1,0 +1,84 @@
+@typeparam TItem
+
+<div class="table-responsive">
+    <table class="table table-hover table-bordered align-middle">
+        <thead class="table-dark">
+            <tr>
+                @foreach (var col in Columns)
+                {
+                    <th @onclick="() => SortBy(col.PropertyName)" style="cursor:pointer; user-select:none;">
+                        @col.Header
+                        @if (_sortColumn == col.PropertyName)
+                        {
+                            <i class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") ms-1"></i>
+                        }
+                    </th>
+                }
+                @if (ShowActions)
+                {
+                    <th style="width:130px;">Actions</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @if (Items is null)
+            {
+                <tr><td colspan="@(Columns.Count + (ShowActions ? 1 : 0))" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </td></tr>
+            }
+            else if (!Items.Any())
+            {
+                <tr><td colspan="@(Columns.Count + (ShowActions ? 1 : 0))" class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox fs-3 d-block mb-2"></i> No records found.
+                </td></tr>
+            }
+            else
+            {
+                @foreach (var item in SortedItems)
+                {
+                    <tr>
+                        @foreach (var col in Columns)
+                        {
+                            <td>@col.CellTemplate(item)</td>
+                        }
+                        @if (ShowActions && RowActions is not null)
+                        {
+                            <td>@RowActions(item)</td>
+                        }
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter] public List<TItem>? Items { get; set; }
+    [Parameter] public List<GridColumn<TItem>> Columns { get; set; } = new();
+    [Parameter] public RenderFragment<TItem>? RowActions { get; set; }
+    [Parameter] public bool ShowActions { get; set; } = true;
+
+    private string _sortColumn = string.Empty;
+    private bool _sortAscending = true;
+
+    private IEnumerable<TItem> SortedItems =>
+        Items is null ? Enumerable.Empty<TItem>() :
+        string.IsNullOrEmpty(_sortColumn) ? Items :
+        _sortAscending
+            ? Items.OrderBy(i => GetPropertyValue(i, _sortColumn))
+            : Items.OrderByDescending(i => GetPropertyValue(i, _sortColumn));
+
+    private void SortBy(string? column)
+    {
+        if (string.IsNullOrEmpty(column)) return;
+        if (_sortColumn == column) _sortAscending = !_sortAscending;
+        else { _sortColumn = column; _sortAscending = true; }
+    }
+
+    private static object? GetPropertyValue(TItem item, string propertyName)
+    {
+        if (item is null) return null;
+        return item.GetType().GetProperty(propertyName)?.GetValue(item);
+    }
+}

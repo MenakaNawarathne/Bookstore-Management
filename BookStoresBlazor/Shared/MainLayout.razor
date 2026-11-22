@@ -1,0 +1,89 @@
+@inherits LayoutComponentBase
+
+<div class="page d-flex flex-column flex-md-row">
+    @* ── Desktop Sidebar ── *@
+    <div class="sidebar d-none d-md-block">
+        <NavMenu />
+    </div>
+
+    @* ── Mobile Offcanvas Drawer ── *@
+    <div class="mobile-sidebar-backdrop @(_mobileNavOpen ? "show" : "")" @onclick="ToggleMobileNav"></div>
+    <div class="mobile-sidebar @(_mobileNavOpen ? "open" : "") d-md-none">
+        <NavMenu OnCloseMobileMenu="ToggleMobileNav" />
+    </div>
+
+    @* ── Main Content Area ── *@
+    <div class="main flex-grow-1 d-flex flex-column min-vh-100">
+        <div class="top-row px-3 px-md-4 d-flex justify-content-between align-items-center border-bottom">
+            <div class="d-flex align-items-center">
+                <button class="btn btn-sm btn-outline-secondary d-md-none me-2" @onclick="ToggleMobileNav" aria-label="Toggle navigation">
+                    <i class="bi bi-list fs-5"></i>
+                </button>
+                <span class="fw-bold d-md-none text-dark">
+                    <i class="bi bi-book-half text-danger me-1"></i>BookStores
+                </span>
+            </div>
+
+            <div class="d-flex align-items-center">
+                <AuthorizeView>
+                    <Authorized>
+                        <span class="text-muted me-3 small d-flex align-items-center">
+                            <i class="bi bi-person-circle me-1 fs-5"></i>
+                            <span class="d-none d-sm-inline fw-semibold me-1">@context.User.Identity?.Name</span>
+                            <span class="badge @GetBadgeClass(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)">
+                                @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+                            </span>
+                        </span>
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" @onclick="Logout">
+                            <i class="bi bi-box-arrow-right"></i> <span class="d-none d-sm-inline">Sign Out</span>
+                        </button>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/login" class="btn btn-sm btn-outline-primary me-2">Sign In</a>
+                        <a href="/signup" class="btn btn-sm btn-primary">Sign Up</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+
+        <div class="content px-3 px-md-4 flex-grow-1">
+            @Body
+        </div>
+
+        <footer class="mt-auto py-3 px-4 border-top bg-white text-muted small text-center text-md-start d-flex flex-column flex-md-row justify-content-between align-items-center">
+            <div>
+                &copy; @DateTime.UtcNow.Year <strong>BookStores Online Bookstore</strong>
+            </div>
+            <div class="mt-2 mt-md-0 d-flex gap-3">
+                <a href="/shop" class="text-decoration-none text-muted">Shop</a>
+                <a href="/cart" class="text-decoration-none text-muted">Cart</a>
+                <a href="/swagger" target="_blank" class="text-decoration-none text-muted">API Docs</a>
+            </div>
+        </footer>
+    </div>
+</div>
+
+@code {
+    [Inject] private CustomAuthStateProvider AuthProvider { get; set; } = null!;
+    [Inject] private NavigationManager Nav { get; set; } = null!;
+
+    private bool _mobileNavOpen = false;
+
+    private void ToggleMobileNav()
+    {
+        _mobileNavOpen = !_mobileNavOpen;
+    }
+
+    private void Logout()
+    {
+        AuthProvider.Logout();
+        Nav.NavigateTo("/login", forceLoad: false);
+    }
+
+    private string GetBadgeClass(string? role) => role switch
+    {
+        "Admin" => "bg-danger",
+        "StoreStaff" => "bg-info text-dark",
+        _ => "bg-primary"
+    };
+}

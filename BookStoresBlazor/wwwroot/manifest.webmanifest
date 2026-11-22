@@ -1,0 +1,10 @@
+{
+  "name": "BookStores Online Bookstore",
+  "short_name": "BookStores",
+  "start_url": "/shop",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#0f3460",
+  "description": "Responsive online bookstore for browsing books, managing a shopping cart and placing orders.",
+  "icons": []
+}

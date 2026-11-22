@@ -1,0 +1,82 @@
+@page "/authors/{AuthorId:int}"
+@attribute [Authorize(Roles = "Admin")]
+@inject IBookStoresService BookService
+@inject NavigationManager Nav
+
+<PageTitle>Author Detail — BookStores</PageTitle>
+
+@if (_author is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="mb-3">
+        <a href="/authors" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Authors
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                    <i class="bi bi-person-fill fs-2 text-primary"></i>
+                </div>
+                <div>
+                    <h3 class="mb-0 fw-bold">@_author.FirstName @_author.LastName</h3>
+                    <span class="badge @(_author.Contract ? "bg-success" : "bg-secondary")">
+                        @(_author.Contract ? "Under Contract" : "No Contract")
+                    </span>
+                </div>
+            </div>
+            <div class="row g-2 text-muted small">
+                <div class="col-sm-4"><i class="bi bi-telephone me-1"></i> @(_author.Phone ?? "N/A")</div>
+                <div class="col-sm-4"><i class="bi bi-geo-alt me-1"></i> @(_author.City ?? "")@((_author.City != null && _author.State != null) ? ", " : "")@(_author.State ?? "")</div>
+                <div class="col-sm-4"><i class="bi bi-envelope me-1"></i> @(_author.Zip ?? "N/A")</div>
+            </div>
+        </div>
+    </div>
+
+    <h5 class="fw-semibold mb-3"><i class="bi bi-journal-bookmark me-2 text-warning"></i>Books by this Author</h5>
+    @if (!_author.BookAuthors.Any())
+    {
+        <div class="alert alert-light text-muted">No books associated with this author.</div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var ba in _author.BookAuthors)
+            {
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="card-title fw-semibold">@ba.Book.Title</h6>
+                            <p class="card-text mb-1">
+                                <span class="badge bg-secondary">@ba.Book.Type</span>
+                            </p>
+                            <p class="card-text text-muted small">
+                                Price: @(ba.Book.Price.HasValue ? ba.Book.Price.Value.ToString("C") : "N/A")
+                            </p>
+                            <p class="card-text text-muted small">
+                                Royalty share: @(ba.RoyaltyPercentage.HasValue ? $"{ba.RoyaltyPercentage}%" : "N/A")
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int AuthorId { get; set; }
+    private Author? _author;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _author = await BookService.GetAuthorAsync(AuthorId);
+    }
+}

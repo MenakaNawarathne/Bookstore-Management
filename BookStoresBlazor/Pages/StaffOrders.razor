@@ -1,0 +1,206 @@
+@page "/staff/orders"
+@attribute [Authorize(Roles = "StoreStaff,Admin")]
+@inject OrderService OrderSvc
+
+<PageTitle>Manage Orders — BookStores</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-clipboard-check fs-3 me-3 text-info"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">Order Fulfillment &amp; Processing</h2>
+            <p class="text-muted mb-0">Review customer orders, inspect item details, and transition lifecycle statuses</p>
+        </div>
+    </div>
+    <div>
+        <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1" @onclick="LoadOrders">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_notification))
+{
+    <div class="alert @(_isNotificationError ? "alert-danger" : "alert-success") alert-dismissible fade show" role="alert">
+        <i class="bi @(_isNotificationError ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill") me-2"></i>@_notification
+        <button type="button" class="btn-close" @onclick="() => _notification = string.Empty"></button>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-info" role="status"></div>
+        <p class="mt-2 text-muted">Retrieving customer orders...</p>
+    </div>
+}
+else if (!_orders.Any())
+{
+    <div class="alert alert-light text-center py-5 card border-0 shadow-sm">
+        <i class="bi bi-inbox fs-2 text-muted d-block mb-2"></i>
+        <p class="text-muted mb-0">No customer orders placed yet.</p>
+    </div>
+}
+else
+{
+    <div class="row g-2 mb-3 align-items-center">
+        <div class="col-12 col-md-5">
+            <div class="input-group">
+                <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                <input class="form-control" placeholder="Search by Order #, Customer, or City..."
+                       @bind="_search" @bind:event="oninput" />
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <select class="form-select" @bind="_statusFilter">
+                <option value="">All Statuses (@_orders.Count)</option>
+                <option value="Pending">Pending (@_orders.Count(o => o.Status == "Pending"))</option>
+                <option value="Confirmed">Confirmed (@_orders.Count(o => o.Status == "Confirmed"))</option>
+                <option value="Packed">Packed (@_orders.Count(o => o.Status == "Packed"))</option>
+                <option value="Shipped">Shipped (@_orders.Count(o => o.Status == "Shipped"))</option>
+                <option value="Delivered">Delivered (@_orders.Count(o => o.Status == "Delivered"))</option>
+                <option value="Cancelled">Cancelled (@_orders.Count(o => o.Status == "Cancelled"))</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-3 text-md-end text-muted small">
+            Showing @FilteredOrders.Count() order@(FilteredOrders.Count() != 1 ? "s" : "")
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Order Ref</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Delivery Address</th>
+                            <th>Payment</th>
+                            <th>Books &amp; Items</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th style="min-width: 170px;">Transition Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var order in FilteredOrders)
+                        {
+                            <tr>
+                                <td class="fw-bold">
+                                    <div>@(string.IsNullOrEmpty(order.OrderNumber) ? $"#{order.OrderId}" : order.OrderNumber)</div>
+                                    <span class="badge bg-light text-muted border" style="font-size: 0.7rem;">ID: @order.OrderId</span>
+                                </td>
+                                <td class="small text-muted text-nowrap">@order.OrderDate.ToLocalTime().ToString("g")</td>
+                                <td>
+                                    <div class="fw-semibold">@(order.Customer?.Username ?? "N/A")</div>
+                                    <div class="small text-muted">@(order.CustomerEmail ?? order.Customer?.EmailAddress ?? "")</div>
+                                    @if (!string.IsNullOrEmpty(order.CustomerPhone))
+                                    {
+                                        <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@order.CustomerPhone</div>
+                                    }
+                                </td>
+                                <td class="small">
+                                    <div class="fw-semibold">@order.ShippingName</div>
+                                    <div class="text-muted">@order.ShippingAddress</div>
+                                    <div class="text-muted">@order.ShippingCity, @order.ShippingPostCode</div>
+                                </td>
+                                <td class="small">
+                                    <span class="badge bg-light text-dark border">@order.PaymentMethod</span>
+                                </td>
+                                <td class="small">
+                                    <ul class="list-unstyled mb-0">
+                                        @foreach (var item in order.Items)
+                                        {
+                                            <li class="text-truncate" style="max-width: 220px;" title="@item.BookTitle">
+                                                &bull; <strong>@item.Quantity&times;</strong> @item.BookTitle
+                                            </li>
+                                        }
+                                    </ul>
+                                </td>
+                                <td class="fw-bold text-primary text-nowrap">@order.TotalAmount.ToString("C")</td>
+                                <td>
+                                    <span class="badge @GetStatusBadgeClass(order.Status) px-2 py-1">@order.Status</span>
+                                </td>
+                                <td>
+                                    @if (order.Status == "Delivered")
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-check-all me-1"></i>Completed</span>
+                                    }
+                                    else if (order.Status == "Cancelled")
+                                    {
+                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Cancelled</span>
+                                    }
+                                    else
+                                    {
+                                        <select class="form-select form-select-sm"
+                                                value="@order.Status"
+                                                @onchange="(e) => UpdateStatus(order.OrderId, e.Value?.ToString() ?? order.Status)">
+                                            <option value="Pending">Pending</option>
+                                            <option value="Confirmed">Confirmed</option>
+                                            <option value="Packed">Packed</option>
+                                            <option value="Shipped">Shipped</option>
+                                            <option value="Delivered">Delivered</option>
+                                            <option value="Cancelled">Cancel Order</option>
+                                        </select>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Order> _orders = new();
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private string _statusFilter = string.Empty;
+    private string _notification = string.Empty;
+    private bool _isNotificationError = false;
+
+    private IEnumerable<Order> FilteredOrders =>
+        _orders.Where(o =>
+            (string.IsNullOrWhiteSpace(_search) ||
+             (o.OrderNumber ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+             o.OrderId.ToString().Contains(_search) ||
+             (o.Customer?.Username ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+             (o.ShippingName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+             (o.ShippingCity ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(_statusFilter) || o.Status == _statusFilter));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrders();
+    }
+
+    private async Task LoadOrders()
+    {
+        _loading = true;
+        _orders = await OrderSvc.GetAllOrdersAsync();
+        _loading = false;
+    }
+
+    private async Task UpdateStatus(int orderId, string newStatus)
+    {
+        var result = await OrderSvc.UpdateOrderStatusAsync(orderId, newStatus);
+        _isNotificationError = !result.Success;
+        _notification = result.Message;
+        await LoadOrders();
+    }
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Pending" => "bg-warning text-dark",
+        "Confirmed" => "bg-info text-dark",
+        "Packed" => "bg-primary",
+        "Shipped" => "bg-primary",
+        "Delivered" => "bg-success",
+        "Cancelled" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

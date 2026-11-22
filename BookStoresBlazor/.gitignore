@@ -1,0 +1,16 @@
+# Visual Studio / .NET
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local database/runtime artifacts
+*.db-shm
+*.db-wal
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,288 @@
+@page "/checkout"
+@attribute [Authorize]
+@inject CartService CartSvc
+@inject OrderService OrderSvc
+@inject CustomAuthStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<PageTitle>Checkout — BookStores</PageTitle>
+
+@if (!CartSvc.Items.Any() && !_orderPlaced)
+{
+    <div class="text-center py-5">
+        <i class="bi bi-cart-x fs-1 text-muted d-block mb-3"></i>
+        <p class="text-muted">Your cart is empty.</p>
+        <a href="/shop" class="btn btn-primary">Browse Books</a>
+    </div>
+}
+else if (_orderPlaced)
+{
+    <div class="text-center py-5">
+        <div class="bg-success bg-opacity-10 d-inline-flex p-4 rounded-circle mb-3">
+            <i class="bi bi-check-circle-fill text-success" style="font-size:3.5rem;"></i>
+        </div>
+        <h2 class="mt-2 fw-bold">Order Confirmed!</h2>
+        <p class="text-muted mb-1">Thank you for your purchase. We have received your order.</p>
+        <div class="badge bg-primary fs-6 px-3 py-2 mb-3">
+            Order Reference: @_placedOrderNumber
+        </div>
+        <p class="text-muted small">A confirmation has been recorded. You can monitor the preparation and delivery progress anytime.</p>
+        <div class="d-flex justify-content-center gap-3 mt-4">
+            <a href="/my-orders" class="btn btn-primary">
+                <i class="bi bi-bag-check me-1"></i>View My Orders
+            </a>
+            <a href="/shop" class="btn btn-outline-secondary">
+                <i class="bi bi-shop me-1"></i>Continue Shopping
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="d-flex align-items-center mb-4">
+        <i class="bi bi-credit-card fs-3 me-3 text-success"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">Secure Checkout</h2>
+            <p class="text-muted mb-0">Provide your shipping address and payment preferences to complete your purchase</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger py-2 mb-3 d-flex align-items-center">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+            <div>@_errorMessage</div>
+        </div>
+    }
+
+    <div class="row g-4">
+        @* ── Shipping & Payment Form ────────────────── *@
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-transparent fw-semibold py-3">
+                    <i class="bi bi-person-lines-fill me-2 text-primary"></i>1. Customer &amp; Delivery Information
+                </div>
+                <div class="card-body">
+                    <EditForm Model="@_form" OnValidSubmit="PlaceOrder">
+                        <DataAnnotationsValidator />
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="_form.FullName" placeholder="e.g. John Doe" />
+                                <ValidationMessage For="() => _form.FullName" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email Address <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="_form.Email" placeholder="e.g. john@example.com" />
+                                <ValidationMessage For="() => _form.Email" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone Number <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="_form.Phone" placeholder="e.g. +44 7911 123456" />
+                                <ValidationMessage For="() => _form.Phone" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Street Address <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="_form.Address" placeholder="e.g. 10 High Street, Flat 4" />
+                                <ValidationMessage For="() => _form.Address" />
+                            </div>
+                            <div class="col-md-7">
+                                <label class="form-label">City <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="_form.City" placeholder="e.g. Cardiff" />
+                                <ValidationMessage For="() => _form.City" />
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Postal Code <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="_form.PostCode" placeholder="e.g. CF5 2YB" />
+                                <ValidationMessage For="() => _form.PostCode" />
+                            </div>
+                        </div>
+
+                        <hr class="my-4" />
+
+                        <h6 class="fw-semibold mb-3">
+                            <i class="bi bi-wallet2 me-2 text-success"></i>2. Payment Method
+                        </h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-6">
+                                <div class="form-check p-3 border rounded-3 @(_form.PaymentMethod == "Cash on Delivery" ? "border-primary bg-light" : "")"
+                                     style="cursor: pointer;"
+                                     @onclick="@(() => _form.PaymentMethod = "Cash on Delivery")">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="paymentRadio" id="codRadio"
+                                           checked="@(_form.PaymentMethod == "Cash on Delivery")"
+                                           @onchange="@(() => _form.PaymentMethod = "Cash on Delivery")" />
+                                    <label class="form-check-label fw-bold" for="codRadio">
+                                        <i class="bi bi-cash-coin me-1 text-success"></i> Cash on Delivery
+                                    </label>
+                                    <div class="small text-muted ps-4">Pay in cash when order is received.</div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="form-check p-3 border rounded-3 @(_form.PaymentMethod == "Card Payment (Demo)" ? "border-primary bg-light" : "")"
+                                     style="cursor: pointer;"
+                                     @onclick="@(() => _form.PaymentMethod = "Card Payment (Demo)")">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="paymentRadio" id="cardRadio"
+                                           checked="@(_form.PaymentMethod == "Card Payment (Demo)")"
+                                           @onchange="@(() => _form.PaymentMethod = "Card Payment (Demo)")" />
+                                    <label class="form-check-label fw-bold" for="cardRadio">
+                                        <i class="bi bi-credit-card-2-front me-1 text-primary"></i> Card Payment (Demo)
+                                    </label>
+                                    <div class="small text-muted ps-4">Mock test card payment transaction.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 py-2 fw-semibold fs-5"
+                                disabled="@_isPlacing">
+                            @if (_isPlacing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span>Securing Order...</span>
+                            }
+                            else
+                            {
+                                <span><i class="bi bi-lock-fill me-2"></i>Place Order &mdash; @CartSvc.TotalAmount.ToString("C")</span>
+                            }
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        @* ── Order Summary Sidebar ──────────────────── *@
+        <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm sticky-top" style="top: 1.5rem;">
+                <div class="card-header bg-transparent fw-semibold py-3">
+                    <i class="bi bi-receipt me-2 text-primary"></i>Order Summary (@CartSvc.TotalCount item@(CartSvc.TotalCount > 1 ? "s" : ""))
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var item in CartSvc.Items)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-3 py-2">
+                                <div>
+                                    <div class="fw-semibold small">@item.Title</div>
+                                    <div class="text-muted small">Qty: @item.Quantity &times; @item.UnitPrice.ToString("C")</div>
+                                </div>
+                                <span class="badge bg-light text-dark border">@item.LineTotal.ToString("C")</span>
+                            </li>
+                        }
+                        <li class="list-group-item d-flex justify-content-between px-3 py-2 text-muted small">
+                            <span>Delivery Fee</span>
+                            <span class="text-success fw-bold">FREE</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between fw-bold px-3 py-3 bg-light">
+                            <span class="fs-5">Total</span>
+                            <span class="text-primary fs-5">@CartSvc.TotalAmount.ToString("C")</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private CheckoutForm _form = new();
+    private bool _isPlacing = false;
+    private bool _orderPlaced = false;
+    private string _placedOrderNumber = string.Empty;
+    private string _errorMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        var user = AuthProvider.GetCurrentUser();
+        if (user != null)
+        {
+            _form.FullName = $"{user.FirstName} {user.LastName}".Trim();
+            if (string.IsNullOrWhiteSpace(_form.FullName))
+                _form.FullName = user.Username;
+
+            _form.Email = user.EmailAddress ?? "";
+        }
+    }
+
+    private async Task PlaceOrder()
+    {
+        if (_isPlacing) return;
+
+        _isPlacing = true;
+        _errorMessage = string.Empty;
+
+        var currentUser = AuthProvider.GetCurrentUser();
+        if (currentUser is null)
+        {
+            _errorMessage = "You must be logged in to place an order.";
+            _isPlacing = false;
+            return;
+        }
+
+        if (!CartSvc.Items.Any())
+        {
+            _errorMessage = "Your shopping cart is empty.";
+            _isPlacing = false;
+            return;
+        }
+
+        try
+        {
+            var order = await OrderSvc.PlaceOrderAsync(
+                currentUser.UserId,
+                _form.FullName,
+                _form.Address,
+                _form.City,
+                _form.PostCode,
+                _form.Email,
+                _form.Phone,
+                _form.PaymentMethod,
+                CartSvc.Items);
+
+            _placedOrderNumber = string.IsNullOrEmpty(order.OrderNumber) ? $"#{order.OrderId}" : order.OrderNumber;
+            CartSvc.Clear();
+            _orderPlaced = true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Unable to process order at this moment. Please verify stock availability and try again.";
+        }
+        finally
+        {
+            _isPlacing = false;
+        }
+    }
+
+    private class CheckoutForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Full name is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(100, ErrorMessage = "Full name cannot exceed 100 characters")]
+        public string FullName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Email address is required")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Enter a valid email address")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Contact phone number is required")]
+        [System.ComponentModel.DataAnnotations.Phone(ErrorMessage = "Enter a valid phone number")]
+        public string Phone { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Street address is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(200, ErrorMessage = "Address cannot exceed 200 characters")]
+        public string Address { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "City is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(50, ErrorMessage = "City cannot exceed 50 characters")]
+        public string City { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Postal code is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(20, ErrorMessage = "Postal code cannot exceed 20 characters")]
+        public string PostCode { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string PaymentMethod { get; set; } = "Cash on Delivery";
+    }
+}

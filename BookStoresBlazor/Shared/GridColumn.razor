@@ -1,0 +1,7 @@
+@typeparam TItem
+
+@code {
+    [Parameter] public string Header { get; set; } = string.Empty;
+    [Parameter] public string? PropertyName { get; set; }
+    [Parameter] public RenderFragment<TItem> CellTemplate { get; set; } = null!;
+}

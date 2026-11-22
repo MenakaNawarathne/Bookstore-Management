@@ -1,0 +1,69 @@
+@page "/sales"
+@attribute [Authorize(Roles = "Admin")]
+@inject IBookStoresService BookService
+
+<PageTitle>Sales — BookStores</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <i class="bi bi-cart3 fs-3 me-3 text-danger"></i>
+    <h2 class="mb-0 fw-bold">Sales</h2>
+</div>
+
+@if (_sales is null)
+{
+    <div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div></div>
+}
+else
+{
+    <div class="mb-3">
+        <input class="form-control w-auto d-inline-block" placeholder="&#x1F50D; Search sales..."
+               @bind="_search" @bind:event="oninput" />
+        <span class="text-muted ms-3 small">@FilteredSales.Count() record(s)</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Order #</th>
+                    <th>Order Date</th>
+                    <th>Store</th>
+                    <th>Book</th>
+                    <th>Quantity</th>
+                    <th>Pay Terms</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var sale in FilteredSales)
+                {
+                    <tr>
+                        <td class="fw-semibold">@sale.OrderNum</td>
+                        <td>@sale.OrderDate.ToString("MMM d, yyyy")</td>
+                        <td>@(sale.Store?.StoreName ?? sale.StoreId)</td>
+                        <td>@(sale.Book?.Title ?? sale.BookId)</td>
+                        <td><span class="badge bg-danger">@sale.Quantity</span></td>
+                        <td><span class="badge bg-secondary">@(sale.PayTerms ?? "—")</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<Sale>? _sales;
+    private string _search = string.Empty;
+
+    private IEnumerable<Sale> FilteredSales =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _sales ?? Enumerable.Empty<Sale>()
+            : (_sales ?? Enumerable.Empty<Sale>())
+                .Where(s => (s.OrderNum ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || (s.Store?.StoreName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || (s.Book?.Title ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sales = await BookService.GetSalesAsync();
+    }
+}

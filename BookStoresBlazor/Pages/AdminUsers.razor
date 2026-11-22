@@ -1,0 +1,141 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@inject OrderService OrderSvc
+@inject CustomAuthStateProvider AuthProvider
+
+<PageTitle>User Management — BookStores</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-shield-person fs-3 me-3 text-danger"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">User Management</h2>
+            <p class="text-muted mb-0">Manage roles and permissions (Customer, Store Staff, Administrator)</p>
+        </div>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" @onclick="LoadUsers">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(_notification))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@_notification
+        <button type="button" class="btn-close" @onclick="() => _notification = string.Empty"></button>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-danger" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>User ID</th>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Current Role</th>
+                            <th style="width: 220px;">Assign Role</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in _users)
+                        {
+                            var currentAdmin = AuthProvider.GetCurrentUser();
+                            var isSelf = currentAdmin?.UserId == user.UserId;
+
+                            <tr>
+                                <td>@user.UserId</td>
+                                <td class="fw-semibold">
+                                    @user.Username
+                                    @if (isSelf)
+                                    {
+                                        <span class="badge bg-secondary ms-1">You</span>
+                                    }
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace($"{user.FirstName} {user.LastName}") ? "—" : $"{user.FirstName} {user.LastName}")</td>
+                                <td>@user.EmailAddress</td>
+                                <td>
+                                    <span class="badge @GetRoleBadgeClass(user.Role)">@user.Role</span>
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm"
+                                            value="@user.Role"
+                                            disabled="@isSelf"
+                                            @onchange="(e) => ChangeUserRole(user.UserId, e.Value?.ToString() ?? user.Role)">
+                                        <option value="Customer">Customer</option>
+                                        <option value="StoreStaff">Store Staff</option>
+                                        <option value="Admin">Administrator</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 bg-light p-3">
+        <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-2"></i>Role Permissions Overview</h6>
+        <div class="row g-3 small">
+            <div class="col-md-4">
+                <span class="badge bg-primary mb-1">Customer</span>
+                <p class="text-muted mb-0">Can browse online bookstore, search books, manage shopping cart, place checkout orders, and review past order history.</p>
+            </div>
+            <div class="col-md-4">
+                <span class="badge bg-info text-dark mb-1">Store Staff</span>
+                <p class="text-muted mb-0">Can view all customer orders, update delivery/fulfillment statuses, monitor inventory levels and stock demand.</p>
+            </div>
+            <div class="col-md-4">
+                <span class="badge bg-danger mb-1">Administrator</span>
+                <p class="text-muted mb-0">Has full system privileges: user role management, authors/publishers/books master records CRUD, and financial analytics.</p>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AppUser> _users = new();
+    private bool _loading = true;
+    private string _notification = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        _loading = true;
+        _users = await OrderSvc.GetAllUsersAsync();
+        _loading = false;
+    }
+
+    private async Task ChangeUserRole(int userId, string newRole)
+    {
+        var success = await OrderSvc.UpdateUserRoleAsync(userId, newRole);
+        _notification = success
+            ? $"Role updated to '{newRole}' successfully."
+            : "The selected role is not valid.";
+        await LoadUsers();
+    }
+
+    private string GetRoleBadgeClass(string role) => role switch
+    {
+        "Admin" => "bg-danger",
+        "StoreStaff" => "bg-info text-dark",
+        "Customer" => "bg-primary",
+        _ => "bg-secondary"
+    };
+}

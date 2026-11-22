@@ -1,0 +1,154 @@
+@implements IDisposable
+<div class="sidebar-header d-flex align-items-center justify-content-between px-3 py-3 border-bottom">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-book-half me-2" style="font-size:1.5rem; color:#e94560;"></i>
+        <span class="fw-bold fs-5">BookStores</span>
+    </div>
+    @if (OnCloseMobileMenu.HasDelegate)
+    {
+        <button class="btn btn-sm btn-outline-light d-md-none" @onclick="CloseMenu">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    }
+</div>
+
+<AuthorizeView>
+    <Authorized>
+        @{
+            var role = context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+        }
+
+        @* ── Customer Nav ─────────────────────────────── *@
+        <div class="px-3 pt-2 text-muted small text-uppercase" style="font-size:0.7rem; letter-spacing: 0.5px;">Customer Store</div>
+        <nav class="nav flex-column">
+            @if (role == "Customer")
+            {
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/" Match="NavLinkMatch.All" @onclick="CloseMenu">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </NavLink>
+            }
+            <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/shop" @onclick="CloseMenu">
+                <i class="bi bi-shop"></i> Browse Books
+            </NavLink>
+            <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/cart" @onclick="CloseMenu">
+                <i class="bi bi-cart3"></i> My Cart
+                @if (_cartCount > 0)
+                {
+                    <span class="badge bg-danger rounded-pill ms-auto">@_cartCount</span>
+                }
+            </NavLink>
+            <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/wishlist" @onclick="CloseMenu">
+                <i class="bi bi-heart"></i> My Wishlist
+                @if (_wishlistCount > 0)
+                {
+                    <span class="badge bg-secondary rounded-pill ms-auto">@_wishlistCount</span>
+                }
+            </NavLink>
+            <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/my-orders" @onclick="CloseMenu">
+                <i class="bi bi-bag-check"></i> My Orders
+            </NavLink>
+        </nav>
+
+        @* ── Store Staff & Admin Nav ───────────────────── *@
+        @if (role == "StoreStaff" || role == "Admin")
+        {
+            <hr class="mx-3 my-2" style="border-color: rgba(255,255,255,0.15);" />
+            <div class="px-3 text-muted small text-uppercase" style="font-size:0.7rem; letter-spacing: 0.5px;">Store Staff</div>
+            <nav class="nav flex-column">
+                @if (role == "StoreStaff")
+                {
+                    <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/" Match="NavLinkMatch.All" @onclick="CloseMenu">
+                        <i class="bi bi-speedometer2"></i> Staff Dashboard
+                    </NavLink>
+                }
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/staff/orders" @onclick="CloseMenu">
+                    <i class="bi bi-clipboard-check"></i> Manage Orders
+                </NavLink>
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/staff/inventory" @onclick="CloseMenu">
+                    <i class="bi bi-boxes"></i> Inventory &amp; Stock
+                </NavLink>
+            </nav>
+        }
+
+        @* ── Admin Only Nav ────────────────────────────── *@
+        @if (role == "Admin")
+        {
+            <hr class="mx-3 my-2" style="border-color: rgba(255,255,255,0.15);" />
+            <div class="px-3 text-muted small text-uppercase" style="font-size:0.7rem; letter-spacing: 0.5px;">Administrator</div>
+            <nav class="nav flex-column">
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/" Match="NavLinkMatch.All" @onclick="CloseMenu">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </NavLink>
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/books" @onclick="CloseMenu">
+                    <i class="bi bi-journal-bookmark"></i> Books Master
+                </NavLink>
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/authors" @onclick="CloseMenu">
+                    <i class="bi bi-people"></i> Authors
+                </NavLink>
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/publishers" @onclick="CloseMenu">
+                    <i class="bi bi-building"></i> Publishers
+                </NavLink>
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/sales" @onclick="CloseMenu">
+                    <i class="bi bi-receipt"></i> Store Sales
+                </NavLink>
+                <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/admin/users" @onclick="CloseMenu">
+                    <i class="bi bi-shield-person"></i> User Management
+                </NavLink>
+                <a class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/swagger" target="_blank">
+                    <i class="bi bi-code-slash"></i> REST API (Swagger)
+                </a>
+            </nav>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <nav class="nav flex-column mt-2">
+            <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/login" @onclick="CloseMenu">
+                <i class="bi bi-box-arrow-in-right"></i> Sign In
+            </NavLink>
+            <NavLink class="nav-link d-flex align-items-center gap-2 px-3 py-2" href="/signup" @onclick="CloseMenu">
+                <i class="bi bi-person-plus"></i> Create Account
+            </NavLink>
+        </nav>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public EventCallback OnCloseMobileMenu { get; set; }
+    [Inject] private CartService CartSvc { get; set; } = null!;
+    [Inject] private WishlistService WishlistSvc { get; set; } = null!;
+
+    private int _cartCount = 0;
+    private int _wishlistCount = 0;
+
+    protected override void OnInitialized()
+    {
+        CartSvc.OnCartChanged += OnCartUpdated;
+        WishlistSvc.OnWishlistChanged += OnWishlistUpdated;
+        _cartCount = CartSvc.TotalCount;
+        _wishlistCount = WishlistSvc.TotalCount;
+    }
+
+    private void OnCartUpdated()
+    {
+        _cartCount = CartSvc.TotalCount;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnWishlistUpdated()
+    {
+        _wishlistCount = WishlistSvc.TotalCount;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseMenu()
+    {
+        if (OnCloseMobileMenu.HasDelegate)
+            await OnCloseMobileMenu.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        CartSvc.OnCartChanged -= OnCartUpdated;
+        WishlistSvc.OnWishlistChanged -= OnWishlistUpdated;
+    }
+}

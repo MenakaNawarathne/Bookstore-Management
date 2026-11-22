@@ -1,0 +1,180 @@
+@page "/my-orders"
+@attribute [Authorize]
+@inject OrderService OrderSvc
+@inject CustomAuthStateProvider AuthProvider
+
+<PageTitle>My Orders — BookStores</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <i class="bi bi-bag-check fs-3 me-3 text-primary"></i>
+    <div>
+        <h2 class="mb-0 fw-bold">My Orders</h2>
+        <p class="text-muted mb-0">Track and view your recent bookstore purchases and delivery status</p>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (!_orders.Any())
+{
+    <div class="text-center py-5 card border-0 shadow-sm p-4">
+        <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+        <h4 class="fw-bold text-secondary">You haven't placed any orders yet</h4>
+        <p class="text-muted">Start shopping to discover our collection of business, cooking, and technical books.</p>
+        <div>
+            <a href="/shop" class="btn btn-primary mt-2">
+                <i class="bi bi-shop me-2"></i>Browse Books
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        @foreach (var order in _orders)
+        {
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-light d-flex flex-wrap justify-content-between align-items-center py-3">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="fw-bold fs-6">Order @(string.IsNullOrEmpty(order.OrderNumber) ? $"#{order.OrderId}" : order.OrderNumber)</span>
+                            <span class="text-muted small">&bull; Placed @order.OrderDate.ToLocalTime().ToString("dd MMM yyyy, h:mm tt")</span>
+                            <span class="badge bg-light text-dark border small">@order.PaymentMethod</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 mt-2 mt-sm-0">
+                            <span class="badge @GetStatusBadgeClass(order.Status) px-3 py-2 fs-6">
+                                @order.Status
+                            </span>
+                            <span class="fw-bold fs-5 text-primary">@order.TotalAmount.ToString("C")</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @* ── Visual Status Timeline Indicator ── *@
+                        @if (order.Status != "Cancelled")
+                        {
+                            <div class="mb-4 px-2">
+                                <div class="position-relative m-3">
+                                    <div class="progress" style="height: 4px;">
+                                        <div class="progress-bar bg-success" role="progressbar"
+                                             style="width: @GetProgressPercentage(order.Status)%;"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between position-absolute top-50 start-0 w-100 translate-middle-y">
+                                        @foreach (var step in _timelineSteps)
+                                        {
+                                            var isReached = IsStepReached(order.Status, step);
+                                            <div class="text-center" style="width: 24px;">
+                                                <div class="rounded-circle @(isReached ? "bg-success text-white" : "bg-light border text-muted") d-flex align-items-center justify-content-center mx-auto shadow-sm"
+                                                     style="width: 24px; height: 24px; font-size: 11px;">
+                                                    @if (isReached) { <i class="bi bi-check"></i> } else { <span>&bull;</span> }
+                                                </div>
+                                                <div class="position-absolute translate-middle-x small fw-semibold @(isReached ? "text-dark" : "text-muted")"
+                                                     style="font-size: 0.72rem; margin-top: 4px; width: 70px;">
+                                                    @step
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="height: 25px;"></div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-danger py-2 mb-3 small d-flex align-items-center">
+                                <i class="bi bi-x-octagon-fill me-2 fs-5"></i>
+                                <div>This order has been cancelled and any reserved book stock has been restored.</div>
+                            </div>
+                        }
+
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-8">
+                                <h6 class="text-muted small text-uppercase fw-bold mb-2">
+                                    <i class="bi bi-journal-bookmark me-1"></i>Purchased Books
+                                </h6>
+                                <ul class="list-group list-group-flush">
+                                    @foreach (var item in order.Items)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                                            <div>
+                                                <a href="/shop/book/@item.BookId" class="text-decoration-none fw-semibold text-dark">
+                                                    @item.BookTitle
+                                                </a>
+                                                <div class="text-muted small">Qty: @item.Quantity &times; @item.UnitPrice.ToString("C")</div>
+                                            </div>
+                                            <span class="fw-bold text-secondary">@item.LineTotal.ToString("C")</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                            <div class="col-md-4 border-start-md ps-md-4">
+                                <h6 class="text-muted small text-uppercase fw-bold mb-2">
+                                    <i class="bi bi-truck me-1"></i>Delivery Details
+                                </h6>
+                                <p class="mb-1 fw-bold text-dark">@order.ShippingName</p>
+                                @if (!string.IsNullOrEmpty(order.CustomerEmail))
+                                {
+                                    <p class="text-muted small mb-1"><i class="bi bi-envelope me-1"></i>@order.CustomerEmail</p>
+                                }
+                                @if (!string.IsNullOrEmpty(order.CustomerPhone))
+                                {
+                                    <p class="text-muted small mb-1"><i class="bi bi-telephone me-1"></i>@order.CustomerPhone</p>
+                                }
+                                <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i>@order.ShippingAddress</p>
+                                <p class="text-muted small mb-0 ms-3">@order.ShippingCity, @order.ShippingPostCode</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Order> _orders = new();
+    private bool _loading = true;
+    private static readonly string[] _timelineSteps = { "Pending", "Confirmed", "Packed", "Shipped", "Delivered" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = AuthProvider.GetCurrentUser();
+        if (user != null)
+        {
+            _orders = await OrderSvc.GetCustomerOrdersAsync(user.UserId);
+        }
+        _loading = false;
+    }
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Pending" => "bg-warning text-dark",
+        "Confirmed" => "bg-info text-dark",
+        "Packed" => "bg-primary",
+        "Shipped" => "bg-primary",
+        "Delivered" => "bg-success",
+        "Cancelled" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private int GetProgressPercentage(string status) => status switch
+    {
+        "Pending" => 5,
+        "Confirmed" => 25,
+        "Packed" => 50,
+        "Shipped" => 75,
+        "Delivered" => 100,
+        _ => 0
+    };
+
+    private bool IsStepReached(string currentStatus, string stepName)
+    {
+        var currentIndex = Array.IndexOf(_timelineSteps, currentStatus);
+        var stepIndex = Array.IndexOf(_timelineSteps, stepName);
+        if (currentIndex < 0 || stepIndex < 0) return false;
+        return currentIndex >= stepIndex;
+    }
+}

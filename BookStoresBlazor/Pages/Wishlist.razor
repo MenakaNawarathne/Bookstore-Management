@@ -1,0 +1,107 @@
+@implements IDisposable
+@page "/wishlist"
+@attribute [Authorize]
+@inject WishlistService WishlistSvc
+@inject CartService CartSvc
+@inject NavigationManager Nav
+
+<PageTitle>My Wishlist — BookStores</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-heart-fill fs-3 me-3 text-danger"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">My Wishlist</h2>
+            <p class="text-muted mb-0">Saved books you want to purchase later</p>
+        </div>
+    </div>
+    <a href="/shop" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-shop me-1"></i>Back to Shop
+    </a>
+</div>
+
+@if (!WishlistSvc.Items.Any())
+{
+    <div class="text-center py-5 card border-0 shadow-sm p-4">
+        <i class="bi bi-heart fs-1 text-muted d-block mb-3"></i>
+        <h4 class="fw-bold text-secondary">Your wishlist is currently empty</h4>
+        <p class="text-muted">Tap the heart icon on any book in the shop to save it here.</p>
+        <div>
+            <a href="/shop" class="btn btn-primary mt-2">
+                <i class="bi bi-shop me-2"></i>Explore Books
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 mb-4">
+        @foreach (var book in WishlistSvc.Items)
+        {
+            <div class="col">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body d-flex flex-column p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-secondary">@(book.Type?.Replace("_", " ") ?? "General")</span>
+                            <button class="btn btn-sm btn-outline-danger" title="Remove from Wishlist"
+                                    @onclick="() => WishlistSvc.Remove(book.BookId)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <h5 class="fw-bold mb-1">
+                            <a href="/shop/book/@book.BookId" class="text-decoration-none text-dark">@book.Title</a>
+                        </h5>
+                        <p class="text-muted small mb-2">
+                            @(book.Publisher?.PublisherName ?? "Independent Publisher")
+                        </p>
+                        <div class="mt-auto pt-3 d-flex justify-content-between align-items-center border-top">
+                            <span class="fs-5 fw-bold text-primary">
+                                @(book.Price.HasValue ? book.Price.Value.ToString("C") : "N/A")
+                            </span>
+                            @if (book.Stock > 0 && book.Price.HasValue)
+                            {
+                                <button class="btn btn-sm btn-success d-flex align-items-center gap-1"
+                                        @onclick="() => MoveToCart(book)">
+                                    <i class="bi bi-cart-plus"></i> Move to Cart
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Out of Stock</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="text-end">
+        <button class="btn btn-outline-danger btn-sm" @onclick="WishlistSvc.Clear">
+            <i class="bi bi-trash3 me-1"></i>Clear Wishlist
+        </button>
+    </div>
+}
+
+@code {
+    private Action _wishlistChangedHandler = null!;
+
+    protected override void OnInitialized()
+    {
+        _wishlistChangedHandler = () => _ = InvokeAsync(StateHasChanged);
+        WishlistSvc.OnWishlistChanged += _wishlistChangedHandler;
+    }
+
+    public void Dispose()
+    {
+        WishlistSvc.OnWishlistChanged -= _wishlistChangedHandler;
+    }
+
+    private void MoveToCart(BookStoresBlazor.Data.Models.Book book)
+    {
+        if (book.Stock <= 0 || !book.Price.HasValue) return;
+
+        CartSvc.AddItem(book.BookId, book.Title, book.Price.Value, 1, book.Stock);
+        WishlistSvc.Remove(book.BookId);
+    }
+}

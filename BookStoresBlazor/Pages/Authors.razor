@@ -1,0 +1,243 @@
+@page "/authors"
+@attribute [Authorize(Roles = "Admin")]
+@inject IBookStoresService BookService
+@inject NavigationManager Nav
+
+<PageTitle>Authors — BookStores</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-people fs-3 me-3 text-primary"></i>
+        <h2 class="mb-0 fw-bold">Authors</h2>
+    </div>
+    <button class="btn btn-primary" @onclick="ShowAddForm">
+        <i class="bi bi-plus-lg me-1"></i>Add Author
+    </button>
+</div>
+
+@if (_showForm)
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent fw-semibold">
+            <i class="bi bi-@(_editAuthor.AuthorId == 0 ? "plus" : "pencil") me-2"></i>
+            @(_editAuthor.AuthorId == 0 ? "New Author" : "Edit Author")
+        </div>
+        <div class="card-body">
+            <EditForm Model="@_editAuthor" OnValidSubmit="SaveAuthor">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">First Name <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_editAuthor.FirstName" />
+                        <ValidationMessage For="() => _editAuthor.FirstName" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_editAuthor.LastName" />
+                        <ValidationMessage For="() => _editAuthor.LastName" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Phone</label>
+                        <InputText class="form-control" @bind-Value="_editAuthor.Phone" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Address</label>
+                        <InputText class="form-control" @bind-Value="_editAuthor.Address" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">City</label>
+                        <InputText class="form-control" @bind-Value="_editAuthor.City" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">State</label>
+                        <InputText class="form-control" @bind-Value="_editAuthor.State" maxlength="2" />
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Zip</label>
+                        <InputText class="form-control" @bind-Value="_editAuthor.Zip" maxlength="5" />
+                    </div>
+                    <div class="col-12 d-flex align-items-center">
+                        <InputCheckbox class="form-check-input me-2" @bind-Value="_editAuthor.Contract" id="contractChk" />
+                        <label class="form-check-label" for="contractChk">Has Contract</label>
+                    </div>
+                </div>
+                <div class="mt-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-success" disabled="@_isSaving">
+                        @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-check-lg me-1"></i>Save
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="HideForm">
+                        <i class="bi bi-x-lg me-1"></i>Cancel
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (_authors is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="mb-3">
+        <input class="form-control w-auto d-inline-block" placeholder="&#x1F50D; Search authors..."
+               @bind="_search" @bind:event="oninput" />
+        <span class="text-muted ms-3 small">@FilteredAuthors.Count() record(s)</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>City</th>
+                    <th>State</th>
+                    <th>Contract</th>
+                    <th style="width:140px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var author in FilteredAuthors)
+                {
+                    <tr>
+                        <td>
+                            <a href="/authors/@author.AuthorId" class="fw-semibold text-decoration-none">
+                                @author.FirstName @author.LastName
+                            </a>
+                        </td>
+                        <td>@(author.Phone ?? "—")</td>
+                        <td>@(author.City ?? "—")</td>
+                        <td>@(author.State ?? "—")</td>
+                        <td>
+                            @if (author.Contract)
+                            {
+                                <span class="badge bg-success"><i class="bi bi-check2"></i> Yes</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">No</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditAuthor(author)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAuthor(author.AuthorId)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert alert-@_messageType alert-dismissible mt-3">
+        @_message
+        <button type="button" class="btn-close" @onclick="() => _message = string.Empty"></button>
+    </div>
+}
+
+@code {
+    private List<Author>? _authors;
+    private Author _editAuthor = new();
+    private bool _showForm = false;
+    private bool _isSaving = false;
+    private string _search = string.Empty;
+    private string _message = string.Empty;
+    private string _messageType = "success";
+
+    private IEnumerable<Author> FilteredAuthors =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _authors ?? Enumerable.Empty<Author>()
+            : (_authors ?? Enumerable.Empty<Author>())
+                .Where(a => a.FullName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || (a.City ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || (a.State ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAuthors();
+    }
+
+    private async Task LoadAuthors()
+    {
+        _authors = await BookService.GetAuthorsAsync();
+    }
+
+    private void ShowAddForm()
+    {
+        _editAuthor = new Author();
+        _showForm = true;
+    }
+
+    private void EditAuthor(Author author)
+    {
+        _editAuthor = new Author
+        {
+            AuthorId = author.AuthorId,
+            FirstName = author.FirstName,
+            LastName = author.LastName,
+            Phone = author.Phone,
+            Address = author.Address,
+            City = author.City,
+            State = author.State,
+            Zip = author.Zip,
+            Contract = author.Contract
+        };
+        _showForm = true;
+    }
+
+    private void HideForm()
+    {
+        _showForm = false;
+        _editAuthor = new Author();
+    }
+
+    private async Task SaveAuthor()
+    {
+        _isSaving = true;
+        try
+        {
+            if (_editAuthor.AuthorId == 0)
+                await BookService.CreateAuthorAsync(_editAuthor);
+            else
+                await BookService.UpdateAuthorAsync(_editAuthor);
+
+            _message = "Author saved successfully!";
+            _messageType = "success";
+            HideForm();
+            await LoadAuthors();
+        }
+        catch
+        {
+            _message = "An error occurred while saving.";
+            _messageType = "danger";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private async Task DeleteAuthor(int id)
+    {
+        try
+        {
+            await BookService.DeleteAuthorAsync(id);
+            _message = "Author deleted.";
+            _messageType = "warning";
+            await LoadAuthors();
+        }
+        catch
+        {
+            _message = "Cannot delete — author may have associated books.";
+            _messageType = "danger";
+        }
+    }
+}

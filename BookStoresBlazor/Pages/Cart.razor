@@ -1,0 +1,168 @@
+@implements IDisposable
+@page "/cart"
+@attribute [Authorize]
+@inject CartService CartSvc
+@inject NavigationManager Nav
+
+<PageTitle>My Cart — BookStores</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-cart3 fs-3 me-3 text-primary"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">Shopping Cart</h2>
+            <p class="text-muted mb-0">Review selected books, modify quantities, and proceed to checkout</p>
+        </div>
+    </div>
+    <a href="/shop" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1">
+        <i class="bi bi-arrow-left"></i> Continue Shopping
+    </a>
+</div>
+
+@if (!string.IsNullOrEmpty(_warningMessage))
+{
+    <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>@_warningMessage
+        <button type="button" class="btn-close" @onclick="() => _warningMessage = string.Empty"></button>
+    </div>
+}
+
+@if (!CartSvc.Items.Any())
+{
+    <div class="text-center py-5 card border-0 shadow-sm p-4">
+        <i class="bi bi-cart-x fs-1 text-muted d-block mb-3"></i>
+        <h4 class="fw-bold text-secondary">Your shopping cart is empty</h4>
+        <p class="text-muted">Browse our catalogue and pick something you love!</p>
+        <div>
+            <a href="/shop" class="btn btn-primary mt-2">
+                <i class="bi bi-shop me-2"></i>Browse Books
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-12 col-lg-8">
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Book Description</th>
+                                    <th style="min-width: 140px;">Quantity</th>
+                                    <th>Unit Price</th>
+                                    <th>Subtotal</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in CartSvc.Items)
+                                {
+                                    <tr>
+                                        <td>
+                                            <a href="/shop/book/@item.BookId" class="fw-bold text-decoration-none text-dark d-block">
+                                                @item.Title
+                                            </a>
+                                            <span class="text-muted small">Max stock: @item.Stock</span>
+                                        </td>
+                                        <td>
+                                            <div class="input-group input-group-sm" style="max-width: 120px;">
+                                                <button class="btn btn-outline-secondary" type="button"
+                                                        @onclick="() => UpdateQty(item.BookId, item.Quantity - 1)">−</button>
+                                                <span class="form-control text-center fw-bold">@item.Quantity</span>
+                                                <button class="btn btn-outline-secondary" type="button"
+                                                        @onclick="() => UpdateQty(item.BookId, item.Quantity + 1)"
+                                                        disabled="@(item.Quantity >= item.Stock)">+</button>
+                                            </div>
+                                        </td>
+                                        <td class="text-nowrap">@item.UnitPrice.ToString("C")</td>
+                                        <td class="fw-bold text-primary text-nowrap">@item.LineTotal.ToString("C")</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" title="Remove item"
+                                                    @onclick="() => CartSvc.RemoveItem(item.BookId)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <button class="btn btn-outline-danger btn-sm" @onclick="CartSvc.Clear">
+                    <i class="bi bi-trash3 me-1"></i>Clear Entire Cart
+                </button>
+                <span class="text-muted small">All prices in GBP (&pound;)</span>
+            </div>
+        </div>
+
+        @* ── Order Summary ─────────────────────────── *@
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm sticky-top" style="top: 1.5rem;">
+                <div class="card-header bg-transparent fw-semibold py-3">Order Summary</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Total Books</span>
+                        <span class="fw-bold">@CartSvc.TotalCount</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Items Subtotal</span>
+                        <span>@CartSvc.TotalAmount.ToString("C")</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Standard Delivery</span>
+                        <span class="text-success fw-bold">FREE</span>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between fw-bold fs-5 mb-3">
+                        <span>Total Payable</span>
+                        <span class="text-primary">@CartSvc.TotalAmount.ToString("C")</span>
+                    </div>
+                    <button class="btn btn-success w-100 py-2 fw-semibold fs-5"
+                            @onclick="GoToCheckout">
+                        <i class="bi bi-credit-card me-2"></i>Proceed to Checkout
+                    </button>
+                    <div class="text-center text-muted small mt-2">
+                        <i class="bi bi-shield-check me-1 text-success"></i>Safe and verified order placement
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _warningMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        CartSvc.OnCartChanged += OnCartStateChanged;
+    }
+
+    private void OnCartStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateQty(string bookId, int targetQty)
+    {
+        _warningMessage = string.Empty;
+        var ok = CartSvc.UpdateQuantity(bookId, targetQty);
+        if (!ok && targetQty > 0)
+        {
+            _warningMessage = "Cannot exceed available stock limit for this title.";
+        }
+    }
+
+    private void GoToCheckout() => Nav.NavigateTo("/checkout");
+
+    public void Dispose()
+    {
+        CartSvc.OnCartChanged -= OnCartStateChanged;
+    }
+}

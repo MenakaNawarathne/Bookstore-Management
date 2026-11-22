@@ -1,0 +1,271 @@
+@page "/shop"
+@attribute [Authorize]
+@inject IBookStoresService BookService
+@inject CartService CartSvc
+@inject WishlistService WishlistSvc
+@inject NavigationManager Nav
+
+<PageTitle>Browse Books — BookStores</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-shop fs-3 me-3 text-primary"></i>
+        <div>
+            <h2 class="mb-0 fw-bold">Online Bookstore</h2>
+            <p class="text-muted mb-0">Browse our collection, inspect stocks, and order online</p>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/wishlist" class="btn btn-outline-danger btn-sm d-flex align-items-center gap-1">
+            <i class="bi bi-heart-fill"></i> Wishlist
+            @if (WishlistSvc.TotalCount > 0)
+            {
+                <span class="badge bg-danger rounded-pill">@WishlistSvc.TotalCount</span>
+            }
+        </a>
+        <a href="/cart" class="btn btn-primary btn-sm d-flex align-items-center gap-1">
+            <i class="bi bi-cart3"></i> Cart
+            @if (CartSvc.TotalCount > 0)
+            {
+                <span class="badge bg-light text-primary rounded-pill">@CartSvc.TotalCount</span>
+            }
+        </a>
+    </div>
+</div>
+
+@* ── Search, Filters & Sorting Bar ──────────────────────────── *@
+<div class="card border-0 shadow-sm p-3 mb-4">
+    <div class="row g-2 align-items-center">
+        <div class="col-12 col-md-4">
+            <div class="input-group">
+                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                <input class="form-control border-start-0 ps-0" placeholder="Search title, author, or publisher..."
+                       @bind="_search" @bind:event="oninput" />
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <select class="form-select" @bind="_typeFilter">
+                <option value="">All Categories</option>
+                @foreach (var t in _types)
+                {
+                    <option value="@t">@t.Replace("_", " ")</option>
+                }
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <select class="form-select" @bind="_availabilityFilter">
+                <option value="all">All Items</option>
+                <option value="in_stock">In Stock Only</option>
+                <option value="low_stock">Low Stock (&le; 5)</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-3">
+            <select class="form-select" @bind="_sortBy">
+                <option value="title_asc">Title (A &rarr; Z)</option>
+                <option value="title_desc">Title (Z &rarr; A)</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="date">Release Date</option>
+            </select>
+        </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top text-muted small">
+        <span>Showing @FilteredBooks.Count() book@(FilteredBooks.Count() != 1 ? "s" : "")</span>
+        @if (!string.IsNullOrWhiteSpace(_search) || !string.IsNullOrWhiteSpace(_typeFilter) || _availabilityFilter != "all")
+        {
+            <button class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="ResetFilters">Clear Filters</button>
+        }
+    </div>
+</div>
+
+@if (_books is null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" style="width:3rem;height:3rem;" role="status"></div>
+        <p class="mt-3 text-muted">Loading catalogue...</p>
+    </div>
+}
+else if (!FilteredBooks.Any())
+{
+    <div class="text-center py-5 text-muted card border-0 shadow-sm p-4">
+        <i class="bi bi-search fs-1 d-block mb-3 text-secondary"></i>
+        <h5>No books found</h5>
+        <p class="mb-3">Try adjusting your search criteria or resetting filters.</p>
+        <div>
+            <button class="btn btn-outline-primary btn-sm" @onclick="ResetFilters">Show All Books</button>
+        </div>
+    </div>
+}
+else
+{
+    @* ── Book Card Grid ───────────────────────────── *@
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-4">
+        @foreach (var book in FilteredBooks)
+        {
+            <div class="col">
+                <div class="card h-100 border-0 shadow-sm book-card d-flex flex-column position-relative">
+                    @* Wishlist heart button *@
+                    <button class="btn btn-sm btn-light rounded-circle position-absolute top-0 end-0 m-2 shadow-sm"
+                            style="z-index: 5;"
+                            title="Toggle Wishlist"
+                            @onclick="() => WishlistSvc.Toggle(book)">
+                        <i class="bi @(WishlistSvc.IsInWishlist(book.BookId) ? "bi-heart-fill text-danger" : "bi-heart text-muted")"></i>
+                    </button>
+
+                    @* Cover placeholder *@
+                    <a href="/shop/book/@book.BookId" class="text-decoration-none">
+                        <div class="book-cover d-flex align-items-center justify-content-center"
+                             style="height:170px; background:linear-gradient(135deg,#1a1a2e,#0f3460); border-radius:12px 12px 0 0;">
+                            <i class="bi bi-book-half text-white" style="font-size:3.5rem; opacity:0.6;"></i>
+                        </div>
+                    </a>
+
+                    <div class="card-body d-flex flex-column p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-light text-secondary border small">
+                                @(book.Type?.Replace("_", " ") ?? "General")
+                            </span>
+                            @if (book.Stock > 5)
+                            {
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success small">In Stock</span>
+                            }
+                            else if (book.Stock > 0)
+                            {
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning small">Only @book.Stock left</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger small">Out of Stock</span>
+                            }
+                        </div>
+
+                        <h6 class="card-title fw-bold mb-1 mt-1 text-truncate" title="@book.Title">
+                            <a href="/shop/book/@book.BookId" class="text-decoration-none text-dark">
+                                @book.Title
+                            </a>
+                        </h6>
+                        <p class="card-text text-muted small mb-1 text-truncate">
+                            <i class="bi bi-person me-1"></i>@string.Join(", ", book.BookAuthors.Select(ba => ba.Author.FullName))
+                        </p>
+                        <p class="card-text text-muted small mb-2 text-truncate">
+                            <i class="bi bi-building me-1"></i>@(book.Publisher?.PublisherName ?? "Independent")
+                        </p>
+
+                        <div class="mt-auto pt-2 d-flex align-items-center justify-content-between border-top">
+                            <div>
+                                <span class="fs-5 fw-bold text-primary">
+                                    @(book.Price.HasValue ? book.Price.Value.ToString("C") : "N/A")
+                                </span>
+                            </div>
+                            <div>
+                                @if (book.Stock > 0 && book.Price.HasValue)
+                                {
+                                    <button class="btn btn-sm btn-primary d-flex align-items-center gap-1"
+                                            @onclick="() => AddToCart(book)">
+                                        <i class="bi bi-cart-plus"></i> Add
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-secondary disabled" disabled>
+                                        Unavailable
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_toastMessage))
+{
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999;">
+        <div class="toast show align-items-center text-bg-success border-0 shadow-lg" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-check-circle-fill me-2"></i>@_toastMessage
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => _toastMessage = string.Empty"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Book>? _books;
+    private string _search = string.Empty;
+    private string _typeFilter = string.Empty;
+    private string _availabilityFilter = "all";
+    private string _sortBy = "title_asc";
+    private string _toastMessage = string.Empty;
+    private List<string> _types = new();
+
+    private IEnumerable<Book> FilteredBooks
+    {
+        get
+        {
+            var q = _books ?? Enumerable.Empty<Book>();
+
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                q = q.Where(b =>
+                    b.Title.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    (b.Publisher?.PublisherName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    b.BookAuthors.Any(ba => ba.Author.FullName.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(_typeFilter))
+            {
+                q = q.Where(b => b.Type == _typeFilter);
+            }
+
+            if (_availabilityFilter == "in_stock")
+            {
+                q = q.Where(b => b.Stock > 0);
+            }
+            else if (_availabilityFilter == "low_stock")
+            {
+                q = q.Where(b => b.Stock <= 5 && b.Stock > 0);
+            }
+
+            q = _sortBy switch
+            {
+                "title_desc" => q.OrderByDescending(b => b.Title),
+                "price_asc"  => q.OrderBy(b => b.Price ?? 0),
+                "price_desc" => q.OrderByDescending(b => b.Price ?? 0),
+                "date"       => q.OrderByDescending(b => b.PublishDate),
+                _            => q.OrderBy(b => b.Title)
+            };
+
+            return q;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _books = await BookService.GetBooksAsync();
+        _types = _books.Select(b => b.Type).Where(t => t is not null).Distinct().Order().ToList()!;
+    }
+
+    private void ResetFilters()
+    {
+        _search = string.Empty;
+        _typeFilter = string.Empty;
+        _availabilityFilter = "all";
+        _sortBy = "title_asc";
+    }
+
+    private async Task AddToCart(Book book)
+    {
+        if (book.Stock <= 0) return;
+
+        CartSvc.AddItem(book.BookId, book.Title, book.Price ?? 0, 1, book.Stock);
+        _toastMessage = $"\"{book.Title}\" added to cart!";
+        await Task.Delay(2500);
+        _toastMessage = string.Empty;
+    }
+}
